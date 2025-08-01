@@ -95,20 +95,58 @@ class ApiService {
   }
 }
 
-  async updateAuditRecord(auditType, record) {
-    const response = await fetch(`${this.baseUrl}/audits/update`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ auditType, record }),
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(errorText || 'Failed to update record');
-    }
-    
-    return await response.json();
+  async updateUser(userId, userData) {
+  const response = await fetch(`${this.baseUrl}/users/${userId}`, {
+    method: 'PUT',
+    headers: this.getAuthHeaders(),
+    body: JSON.stringify(userData),
+  });
+  
+  if (!response.ok) {
+    throw new Error(await response.text() || 'Failed to update user');
   }
+  
+  return await response.json();
+}
+
+async deleteUser(userId) {
+  const response = await fetch(`${this.baseUrl}/users/${userId}`, {
+    method: 'DELETE',
+    headers: this.getAuthHeaders()
+  });
+  
+  if (!response.ok) {
+    throw new Error(await response.text() || 'Failed to delete user');
+  }
+  
+  return await response.json();
+}
+
+  async updateAuditRecord(auditType, record) {
+  const response = await fetch(`${this.baseUrl}/audits/update`, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${JSON.parse(localStorage.getItem('user'))?.token}`
+    },
+    body: JSON.stringify({ 
+      type: auditType,  // Changed from auditType to type to match backend expectation
+      record: {
+        ...record,
+        // Ensure date fields are properly formatted
+        DateOfAudit: record.DateOfAudit || null,
+        ClosingDates: record.ClosingDates || null
+      }
+    }),
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'Failed to update record');
+  }
+  
+  return await response.json();
+}
 
   async checkLastUploadDate(auditType) {
     const response = await fetch(`${this.baseUrl}/audits/last-upload?type=${auditType}`);
