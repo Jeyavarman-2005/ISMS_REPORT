@@ -1,8 +1,11 @@
 import React from 'react';
 import './dashboard.css';
+import Header from '../components/Header';
 
 const Dashboard = () => {
   return (
+    <>
+    <Header />
     <div className="dashboard-container">
       <h2>Dashboard</h2>
       <div className="dashboard-content">
@@ -12,6 +15,7 @@ const Dashboard = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 
