@@ -1,22 +1,31 @@
+/* This will only affect the login page */
+.login-page {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+}
+
 .login-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
-  /* Remove background-image from here */
+  height: 100vh;
+  width: 100vw;
   background-color: #f5f5f5; /* Fallback color */
 }
 
-/* Keep all other styles the same */
-
 .login-box {
-  background: rgba(197, 180, 180, 0.251); /* Semi-transparent white */
+  background: rgba(197, 180, 180, 0);
   padding: 2.5rem;
   border-radius: 30px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   width: 40%;
   max-width: 420px;
-  backdrop-filter: blur(1px); /* Subtle blur effect */
+  min-width: 300px;
+  backdrop-filter: blur(1px);
 }
 
 .login-box h2 {
@@ -28,6 +37,7 @@
 
 .input-group {
   margin-bottom: 1.25rem;
+  padding-right: 2rem;
 }
 
 .input-group label {
@@ -38,7 +48,7 @@
 }
 
 .input-group input {
-  width: 100%;
+  width: 110%;
   padding: 0.85rem;
   border: 1px solid #ddd;
   border-radius: 20px;
@@ -49,6 +59,30 @@
 .input-group input:focus {
   border-color: #1976d2;
   outline: none;
+}
+
+.password-input-container {
+  position: relative;
+}
+
+.password-input-wrapper {
+  position: relative;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #555;
+  padding: 0.5rem;
+}
+
+.password-toggle:hover {
+  color: #1976d2;
 }
 
 .error-message {
@@ -82,4 +116,9 @@
 .login-btn:disabled {
   background-color: #bdbdbd;
   cursor: not-allowed;
+}
+
+/* This class will be added/removed by the component */
+.no-scroll {
+  overflow: hidden;
 }
