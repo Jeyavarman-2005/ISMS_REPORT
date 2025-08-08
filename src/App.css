@@ -14,5 +14,4 @@ body {
 
 .main-content {
   flex: 1;
-  padding-bottom: 60px; /* To account for footer height */
 }
