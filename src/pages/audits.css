@@ -9,10 +9,10 @@
   font-family: 'Montserrat', sans-serif;
 }
 
-.audit-container {
+/* .audit-container {
   display: flex;
   flex: 1;
-}
+} */
 
 .audit-sidebar {
   width: 200px;
@@ -116,9 +116,22 @@
   padding: 2rem;
   background-color: #f8fafc;
 }
+/* New Header Styles */
+.audit-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #e0e0e0;
+  margin: 0;
+  font-size: 24px;
+  color: #333;
+}
 
 .audit-header h2 {
   font-size: 2rem;
+  margin-top: 0.88rem;
   color: #1e3a8a;
   margin: 0;
   font-family: 'Montserrat', sans-serif;
@@ -143,6 +156,8 @@
   position: relative;
   flex: 1;
   max-width: 300px;
+  margin-bottom: 0.88rem;
+
 }
 
 .search-icon {
@@ -314,15 +329,27 @@
 .table-container {
   width: 100%;
   overflow-x: auto;
-  max-height: calc(100vh - 300px);
   overflow-y: auto;
+  max-height: 500px; /* Adjust this value as needed */
+  position: relative;
+  margin-bottom: 1rem;
 }
+/* .table-wrapper {
+  flex-grow: 1;
+  overflow: hidden;
+} */
 
 .audit-data-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   min-width: 1800px;
+}
+/* Make header sticky */
+.audit-data-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .audit-data-table th {
@@ -333,21 +360,33 @@
   text-align: left;
   font-size: 0.85rem;
   position: sticky;
-  overflow: auto;
-  top: 4;
-  z-index: 10;
+  top: 0;
+}
+.audit-content {
+  overflow: hidden; /* Prevent the entire content area from scrolling */
+  height: calc(100vh - 120px); /* Adjust based on your header height */
+  display: flex;
+  flex-direction: column;
 }
 
 .audit-data-table td {
   padding: 1rem;
+  position: sticky;
+  top: 0%;
+  z-index: 50;
   border-bottom: 1px solid #e2e8f0;
   color: #475569;
   font-size: 0.85rem;
   vertical-align: top;
+  background-color: white; /* Ensure cells have solid background */
 }
 
 .audit-data-table tr:hover td {
   background-color: #f8fafc;
+}
+/* Optional: Add shadow to sticky header */
+.audit-data-table thead {
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
 .audit-data-table input,
