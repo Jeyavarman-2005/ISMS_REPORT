@@ -1,0 +1,1259 @@
+give me full updated code files
+I want to automate the closing date and status of audit table , and remove the option for manually changing the closing dates and status for the users , only admin can access them manually , if the user upload the evidence successfully , the status of open row must be automaticallay  closed and the date of submission also updated according to when the users upload the evidence , after uploading evidence the user can't change anything in that , if the status is closed , the edit option in the particular must automatically shows locked , then the admin can only reopen that row user did any mistakes
+audits.js:
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../../services/api';
+import Header from '../../components/Common/Header';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { FiUpload, FiDownload, FiRefreshCw, FiSearch, FiEdit2, FiFile, FiX, FiFilter } from 'react-icons/fi';
+import styles from './Audits.module.css';
+
+const Audits = () => {
+  const [auditType, setAuditType] = useState('internal');
+  const [auditData, setAuditData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [file, setFile] = useState(null);
+  const [fileKey, setFileKey] = useState(Date.now());
+  const [lastUploadDate, setLastUploadDate] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [expandedRow, setExpandedRow] = useState(null);
+  const [selectedPlant, setSelectedPlant] = useState('All Plants');
+  const [plants, setPlants] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [evidenceFiles, setEvidenceFiles] = useState({});
+  const [editPopup, setEditPopup] = useState({
+    isOpen: false,
+    rowIndex: null,
+    field: '',
+    value: ''
+  });
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const type = queryParams.get('type');
+    if (type === 'internal' || type === 'external') {
+      setAuditType(type);
+    }
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await api.getAuditData(auditType);
+      setAuditData(Array.isArray(data) ? data : []);
+      if (data.length > 0) {
+        setLastUploadDate(data[0].lastUploadDate || null);
+      }
+
+      const uniquePlants = ['All Plants', ...new Set(data.map(item => item.Location).filter(Boolean))];
+      setPlants(uniquePlants);
+      
+      applyFilters(searchTerm, selectedPlant, data);
+    } catch (err) {
+      setError(err.message);
+      setAuditData([]);
+      setFilteredData([]);
+      toast.error('Failed to load audit data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const applyFilters = (searchTerm, plant, data = auditData) => {
+    let result = [...data];
+    
+    if (plant && plant !== 'All Plants') {
+      result = result.filter(row => row.Location === plant);
+    }
+    
+    if (searchTerm) {
+      result = result.filter(row => 
+        Object.values(row).some(
+          val => val && val.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      ));
+    }
+    
+    setFilteredData(result);
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [auditType]);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
+        navigate('/');
+        return;
+      }
+      const user = JSON.parse(userStr);
+      setIsAdmin(user.role === 'admin');
+    };
+
+    checkUser();
+  }, [navigate]);
+
+  useEffect(() => {
+    applyFilters(searchTerm, selectedPlant);
+  }, [searchTerm, selectedPlant]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const userList = await api.getAllUsers();
+        setUsers(userList);
+      } catch (err) {
+        console.error('Failed to fetch users', err);
+      }
+    };
+
+    fetchUsers();
+  }, []);
+
+  const handleEvidenceFileChange = (e, rowIndex) => {
+    const file = e.target.files[0];
+    if (file) {
+      setEvidenceFiles(prev => ({
+        ...prev,
+        [rowIndex]: file
+      }));
+      toast.info(`File selected for row ${rowIndex + 1}: ${file.name}`);
+    }
+  };
+
+  const handleEvidenceUpload = async (rowIndex) => {
+    if (!evidenceFiles[rowIndex]) {
+      toast.warning('Please select a file first');
+      return;
+    }
+
+    const row = filteredData[rowIndex];
+    
+    if (!row.ID && !row.id && !row.Id && !row._id) {
+      toast.error('Invalid record: Missing ID');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', evidenceFiles[rowIndex]);
+      const recordId = row.ID || row.id || row.Id || row._id;
+      formData.append('record_id', row.ID.toString());
+      formData.append('audit_type', auditType);
+
+      const response = await api.uploadEvidence(formData);
+      
+      const updatedData = [...auditData];
+      const dataIndex = auditData.findIndex(item => item.ID === row.ID);
+      
+      if (dataIndex !== -1) {
+        updatedData[dataIndex] = {
+          ...updatedData[dataIndex],
+          Evidence: response.filename,
+          Status: 'Closed'
+        };
+        
+        setAuditData(updatedData);
+        applyFilters(searchTerm, selectedPlant, updatedData);
+        
+        setEvidenceFiles(prev => {
+          const newState = {...prev};
+          delete newState[rowIndex];
+          return newState;
+        });
+        
+        toast.success('Evidence uploaded successfully!');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to upload evidence');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFileChange = (e) => {
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      toast.info(`File selected: ${selectedFile.name}`);
+    }
+  };
+
+  const handleFileUpload = async () => {
+    if (!file) {
+      toast.warning('Please select a file first');
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('type', auditType);
+      
+      setFile(null);
+      setFileKey(Date.now());
+
+      await api.uploadAuditFile(formData, auditType);
+      await loadData();
+      toast.success('File uploaded successfully!');
+    } catch (err) {
+      setError(err.message || 'Failed to upload file');
+      toast.error(err.message || 'Failed to upload file');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCellUpdate = async (rowIndex, columnName, value) => {
+    const updatedData = [...auditData];
+    updatedData[rowIndex][columnName] = value;
+    setAuditData(updatedData);
+
+    try {
+      await api.updateAuditRecord(auditType, updatedData[rowIndex]);
+      applyFilters(searchTerm, selectedPlant, updatedData);
+    } catch (err) {
+      setError('Failed to save changes');
+      toast.error('Failed to save changes');
+    }
+  };
+
+  const openEditPopup = (rowIndex, field) => {
+    setEditPopup({
+      isOpen: true,
+      rowIndex,
+      field,
+      value: filteredData[rowIndex][field] || ''
+    });
+  };
+
+  const closeEditPopup = () => {
+    setEditPopup({
+      isOpen: false,
+      rowIndex: null,
+      field: '',
+      value: ''
+    });
+  };
+
+  const saveEditPopup = () => {
+    if (editPopup.rowIndex !== null) {
+      handleCellUpdate(editPopup.rowIndex, editPopup.field, editPopup.value);
+    }
+    closeEditPopup();
+  };
+
+  return (
+    <div className={styles.auditDashboard}>
+      <Header />
+      <ToastContainer position="top-right" autoClose={5000} />
+      
+      <div className={styles.auditContainer}>
+        <div className={styles.auditContent}>
+          {/* Compact Header Row */}
+          <div className={styles.compactHeader}>
+            <div className={styles.titleSection}>
+              <h1>Internal Audit Management</h1>
+            </div>
+            
+            <div className={styles.controlsSection}>
+              <div className={styles.searchBox}>
+                <FiSearch className={styles.searchIcon} />
+                <input
+                  type="text"
+                  placeholder="Search audits..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              
+              <div className={styles.filterDropdown}>
+                <FiFilter className={styles.filterIcon} />
+                <select
+                  value={selectedPlant}
+                  onChange={(e) => setSelectedPlant(e.target.value)}
+                >
+                  {plants.map((plant, index) => (
+                    <option key={index} value={plant}>{plant}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {isAdmin && (
+                <div className={styles.uploadControl}>
+                  <label className={styles.fileInputLabel}>
+                    <input 
+                      type="file" 
+                      accept=".xlsx,.csv" 
+                      onChange={handleFileChange} 
+                      key={fileKey} 
+                    />
+                    <span className={styles.fileInputButton}>
+                      <FiUpload /> Upload
+                    </span>
+                  </label>
+                  <button 
+                    onClick={handleFileUpload} 
+                    disabled={!file || isLoading}
+                    className={styles.uploadButton}
+                  >
+                    {isLoading ? (
+                      <FiRefreshCw className={styles.spinIcon} />
+                    ) : 'Submit'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className={styles.errorMessage}>
+              {error}
+            </div>
+          )}
+
+          {/* Enhanced Audit Table */}
+          <div className={styles.tableWrapper}>
+            {isLoading ? (
+              <div className={styles.loadingSpinner}>
+                <div className={styles.spinner}></div>
+                <p>Loading audit data...</p>
+              </div>
+            ) : (
+              <div className={styles.tableContainer}>
+                <table className={styles.auditTable}>
+                  <thead>
+                    <tr>
+                      <th>SN</th>
+                      <th>Location</th>
+                      <th>Domain/Clauses</th>
+                      <th>Date of Audit</th>
+                      <th>Report Date</th>
+                      <th>NC Type</th>
+                      <th>Observation</th>
+                      <th>Root Cause Analysis</th>
+                      <th>Corrective Action</th>
+                      <th>Preventive Action</th>
+                      <th>Responsibility</th>
+                      <th>Closing Date</th>
+                      <th>Status</th>
+                      <th>Evidence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredData.map((row, rowIndex) => (
+                      <React.Fragment key={rowIndex}>
+                        <tr>
+                          <td className={styles.tableCell}>{row.SN}</td>
+                          <td className={styles.tableCell}>{row.Location}</td>
+                          <td className={styles.tableCell}>{row.DomainClauses}</td>
+                          <td className={styles.tableCell}>{row.DateOfAudit}</td>
+                          <td className={styles.tableCell}>{row.DateOfSubmission}</td>
+                          <td className={styles.tableCell}>
+                            <span className={`${styles.ncBadge} ${styles[row.NCMinI?.toLowerCase().replace(' ', '-')]}`}>
+                              {row.NCMinI}
+                            </span>
+                          </td>
+                          <td className={`${styles.tableCell} ${styles.observationCell}`}>
+                            {row.ObservationDescription}
+                          </td>
+                          <td className={styles.tableCell}>
+                            <div className={styles.editFieldContainer}>
+                              <div className={styles.fieldContent}>
+                                {row.RootCauseAnalysis }
+                              </div>
+                              <button 
+                                className={styles.editButton}
+                                onClick={() => openEditPopup(rowIndex, 'RootCauseAnalysis')}
+                              >
+                                <FiEdit2 /> Edit
+                              </button>
+                            </div>
+                          </td>
+                          <td className={styles.tableCell}>
+                            <div className={styles.editFieldContainer}>
+                              <div className={styles.fieldContent}>
+                                {row.CorrectiveAction }
+                              </div>
+                              <button 
+                                className={styles.editButton}
+                                onClick={() => openEditPopup(rowIndex, 'CorrectiveAction')}
+                              >
+                                <FiEdit2 /> Edit
+                              </button>
+                            </div>
+                          </td>
+                          <td className={styles.tableCell}>
+                            <div className={styles.editFieldContainer}>
+                              <div className={styles.fieldContent}>
+                                {row.PreventiveAction}
+                              </div>
+                              <button 
+                                className={styles.editButton}
+                                onClick={() => openEditPopup(rowIndex, 'PreventiveAction')}
+                              >
+                                <FiEdit2 /> Edit
+                              </button>
+                            </div>
+                          </td>
+                          <td className={`${styles.tableCell} ${styles.editableCell}`}>
+                            <select
+                              value={row.Responsibility || ''}
+                              onChange={(e) => handleCellUpdate(rowIndex, 'Responsibility', e.target.value)}
+                              className={styles.responsibilitySelect}
+                            >
+                              <option value="">Select</option>
+                              {users.map(user => (
+                                <option key={user.id} value={user.Username}>
+                                  {user.CompanyName} ({user.Username})
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className={`${styles.tableCell} ${styles.editableCell}`}>
+                            <input
+                              type="date"
+                              value={row.ClosingDates || ''}
+                              onChange={(e) => handleCellUpdate(rowIndex, 'ClosingDates', e.target.value)}
+                              className={styles.dateInput}
+                            />
+                          </td>
+                          <td className={`${styles.tableCell} ${styles.editableCell}`}>
+                            <select
+                              value={row.Status || 'Open'}
+                              onChange={(e) => handleCellUpdate(rowIndex, 'Status', e.target.value)}
+                              className={`${styles.statusSelect} ${styles[row.Status?.toLowerCase()]}`}
+                              disabled={!isAdmin && row.Status === 'Closed'}
+                            >
+                              <option value="Open">Open</option>
+                              <option value="Closed">Closed</option>
+                            </select>
+                          </td>
+                          <td className={`${styles.tableCell} ${styles.evidenceCell}`}>
+                            {row.Evidence ? (
+                              <div className={styles.evidenceDownload}>
+                                <a 
+                                  href={`${api.baseUrl}/uploads/${row.Evidence}`} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className={styles.downloadLink}
+                                >
+                                  <FiDownload /> Download
+                                </a>
+                                {isAdmin && (
+                                  <button 
+                                    className={styles.clearEvidence}
+                                    onClick={() => handleCellUpdate(rowIndex, 'Evidence', '')}
+                                  >
+                                    <FiX />
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div className={styles.evidenceUpload}>
+                                <input
+                                  type="file"
+                                  id={`evidence-${rowIndex}`}
+                                  accept=".pdf,.pptx,.png,.jpeg,.jpg"
+                                  onChange={(e) => handleEvidenceFileChange(e, rowIndex)}
+                                  style={{ display: 'none' }}
+                                />
+                                <label htmlFor={`evidence-${rowIndex}`} className={styles.fileLabel}>
+                                  <FiFile /> Choose File
+                                </label>
+                                {evidenceFiles[rowIndex] && (
+                                  <button 
+                                    className={styles.uploadButton}
+                                    onClick={() => handleEvidenceUpload(rowIndex)}
+                                    disabled={isLoading}
+                                  >
+                                    <FiUpload /> Upload
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Edit Popup */}
+      {editPopup.isOpen && (
+        <div className={styles.editPopupOverlay}>
+          <div className={styles.editPopup}>
+            <h3>Edit {editPopup.field.replace(/([A-Z])/g, ' $1').trim()}</h3>
+            <textarea
+              value={editPopup.value}
+              onChange={(e) => setEditPopup({...editPopup, value: e.target.value})}
+              className={styles.popupTextarea}
+              autoFocus
+            />
+            <div className={styles.popupButtons}>
+              <button 
+                className={styles.popupCancel}
+                onClick={closeEditPopup}
+              >
+                Cancel
+              </button>
+              <button 
+                className={styles.popupSave}
+                onClick={saveEditPopup}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default Audits;
+Index.py:
+from flask import Flask, request, jsonify, send_from_directory
+import pyodbc
+import bcrypt
+import pandas as pd
+from datetime import datetime
+from functools import wraps
+import os
+import uuid
+
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# Database connection
+def get_db():
+    conn = pyodbc.connect(
+        'DRIVER={ODBC Driver 17 for SQL Server};'
+        'SERVER=DESKTOP-0MA8HCV;'
+        'DATABASE=AUDIT_DB;'
+        'UID=sa;'  # SQL Server username
+        'PWD=Ayaaz@1234;'  # SQL Server password
+    )
+    return conn
+
+# Error handler
+def handle_errors(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception as e:
+            print(f'Error in {f.__name__}: {str(e)}')
+            return jsonify({'error': str(e)}), 500
+    return wrapper
+
+# Authentication middleware
+def admin_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Authorization token required'}), 401
+        
+        token = auth_header.split(' ')[1]
+        user = verify_token(token)
+        
+        if not user:
+            return jsonify({'error': 'Invalid or expired token'}), 401
+        
+        if user['role'] != 'admin':
+            return jsonify({'error': 'Admin privileges required'}), 403
+        
+        return f(*args, **kwargs)
+    return wrapper
+
+def verify_token(token):
+    if not token:
+        return None
+    
+    conn = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT UserID, Username, Role FROM Users 
+            WHERE Token = ? AND Token IS NOT NULL
+        """, (token,))
+        user = cursor.fetchone()
+        
+        if user:
+            return {
+                'id': user[0],
+                'username': user[1],
+                'role': user[2]
+            }
+        return None
+    except Exception as e:
+        print(f"Token verification error: {str(e)}")
+        return None
+    finally:
+        if conn:
+            conn.close()
+
+    
+    
+
+@app.route('/api/login', methods=['POST'])
+@handle_errors
+def login():
+    data = request.get_json()
+    if not data or 'username' not in data or 'password' not in data:
+        return jsonify({'error': 'Username and password required'}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT UserID, Username, Password, Role FROM Users WHERE Username = ?", 
+                  (data['username'],))
+    user = cursor.fetchone()
+    
+    if not user:
+        conn.close()
+        return jsonify({'error': 'Invalid credentials'}), 401
+    
+    user_id, username, password_hash, role = user
+    
+    if bcrypt.checkpw(data['password'].encode('utf-8'), password_hash.encode('utf-8')):
+        # Generate and store token
+        token = str(uuid.uuid4())
+        cursor.execute("UPDATE Users SET Token = ? WHERE UserID = ?", (token, user_id))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'id': user_id,
+            'username': username,
+            'role': role,
+            'token': token
+        })
+    
+    conn.close()
+    return jsonify({'error': 'Invalid credentials'}), 401
+
+@app.route('/api/users', methods=['GET'])
+@handle_errors
+@admin_required
+def get_users():
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT UserID as id, CompanyName, PlantName, Username, GenId, Email, Department, Role
+        FROM Users ORDER BY CompanyName, Username
+    """)
+    
+    columns = [column[0] for column in cursor.description]
+    users = [dict(zip(columns, row)) for row in cursor.fetchall()]
+    conn.close()
+    
+    return jsonify(users)
+
+@app.route('/api/users/<int:user_id>', methods=['PUT'])
+@handle_errors
+@admin_required
+def update_user(user_id):
+    data = request.get_json()
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        # First check if username is being changed to an existing one
+        if 'username' in data:
+            cursor.execute("SELECT UserID FROM Users WHERE Username = ? AND UserID != ?", 
+                         (data['username'], user_id))
+            if cursor.fetchone():
+                return jsonify({'error': 'Username already exists'}), 400
+        
+        # Build update query
+        update_fields = []
+        params = []
+        field_mapping = {
+            'companyName': 'CompanyName',
+            'plantName': 'PlantName',
+            'username': 'Username',
+            'genId': 'GenId',
+            'email': 'Email',
+            'department': 'Department',
+            'role': 'Role'
+        }
+        
+        for frontend_field, db_field in field_mapping.items():
+            if frontend_field in data:
+                update_fields.append(f"{db_field} = ?")
+                params.append(data[frontend_field])
+        
+        if 'password' in data and data['password']:
+            hashed_pw = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            update_fields.append("Password = ?")
+            params.append(hashed_pw)
+        
+        if not update_fields:
+            return jsonify({'error': 'No fields to update'}), 400
+        
+        query = f"UPDATE Users SET {', '.join(update_fields)} WHERE UserID = ?"
+        params.append(user_id)
+        
+        cursor.execute(query, params)
+        conn.commit()
+        
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/users/<int:user_id>', methods=['DELETE'])
+@handle_errors
+@admin_required
+def delete_user(user_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("DELETE FROM Users WHERE UserID = ?", (user_id,))
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'User not found'}), 404
+            
+        return jsonify({'success': True}), 200
+    finally:
+        conn.close()
+
+@app.route('/api/users', methods=['POST'])
+@handle_errors
+@admin_required
+def create_user():
+    data = request.get_json()
+    required_fields = ['companyName', 'username', 'password', 'email', 'department', 'role']
+    
+    if not all(field in data for field in required_fields):
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    # Hash password
+    hashed_pw = bcrypt.hashpw(data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            INSERT INTO Users (CompanyName, PlantName, Username, GenId, Password, Email, Department, Role)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (data['companyName'], data.get('plantName', ''), data['username'], 
+                data.get('genId', ''), hashed_pw, data['email'], 
+                data['department'], data['role']))
+        conn.commit()
+        return jsonify({'success': True}), 201
+    except pyodbc.IntegrityError:
+        return jsonify({'error': 'Username already exists'}), 400
+    finally:
+        conn.close()
+
+@app.route('/api/audits', methods=['GET'])
+@handle_errors
+def get_audit_data():
+    audit_type = request.args.get('type', 'internal')
+    if audit_type not in ['internal', 'external']:
+        return jsonify({'error': 'Invalid audit type'}), 400
+    
+    conn = None
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # First check if table exists
+        cursor.execute(f"""
+            SELECT COUNT(*) 
+            FROM INFORMATION_SCHEMA.TABLES 
+            WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = '{audit_type}_audits'
+        """)
+        
+        if cursor.fetchone()[0] == 0:
+            return jsonify({
+                'data': [],
+                'message': f'Table {audit_type}_audits does not exist yet',
+                'lastUploadDate': None
+            }), 404
+        
+        # Proceed with normal query if table exists
+        cursor.execute(f"""
+            SELECT 
+                ID, SN, Location, DomainClauses, 
+                CONVERT(varchar, DateOfAudit, 23) as DateOfAudit,
+                CONVERT(varchar, DateOfSubmission, 23) as DateOfSubmission,
+                NCMinI, ObservationDescription,
+                RootCauseAnalysis, CorrectiveAction, PreventiveAction,
+                Responsibility, 
+                CONVERT(varchar, ClosingDates, 23) as ClosingDates,
+                Status, Evidence,
+                CONVERT(varchar, UploadDate, 120) as UploadDate
+            FROM {audit_type}_audits 
+            ORDER BY SN ASC
+        """)
+        
+        columns = [column[0] for column in cursor.description]
+        data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        
+        return jsonify({
+            'data': data,
+            'lastUploadDate': data[0].get('UploadDate') if data else None
+        })
+    except pyodbc.Error as e:
+        return jsonify({'error': f'Database error: {str(e)}'}), 500
+    finally:
+        if conn:
+            conn.close()
+
+@app.route('/api/audits/last-upload', methods=['GET'])
+@handle_errors
+def get_last_upload_date():
+    audit_type = request.args.get('type', 'internal')
+    if audit_type not in ['internal', 'external']:
+        return jsonify({'error': 'Invalid audit type'}), 400
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(f"""
+            SELECT MAX(UploadDate) as lastUploadDate 
+            FROM {audit_type}_audits
+        """)
+        result = cursor.fetchone()
+        return jsonify({
+            'lastUploadDate': result[0] if result and result[0] else None
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/audits/upload', methods=['POST'])
+@handle_errors
+@admin_required
+def upload_audit_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    audit_type = request.form.get('type', 'internal')
+    
+    if not (file.filename.lower().endswith('.xlsx') or file.filename.lower().endswith('.csv')):
+        return jsonify({'error': 'Only Excel (.xlsx) or CSV (.csv) files are allowed'}), 400
+    
+    # Save the file temporarily
+    file_ext = os.path.splitext(file.filename)[1].lower()
+    filename = f"{audit_type}_audit_{datetime.now().strftime('%Y%m%d_%H%M%S')}{file_ext}"
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
+    
+    try:
+        # Read file based on extension
+        if file_ext == '.xlsx':
+            df = pd.read_excel(filepath)
+        elif file_ext == '.csv':
+            # Try different encodings for CSV files
+            encodings = ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']
+            for encoding in encodings:
+                try:
+                    df = pd.read_csv(filepath, encoding=encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            else:
+                return jsonify({'error': 'Failed to decode CSV file. Please ensure it uses a standard encoding.'}), 400
+        else:
+            return jsonify({'error': 'Unsupported file format'}), 400
+        
+        # Validate columns
+        required_columns = [
+            'SN', 'Location', 'Domain/Clauses', 'Date of audit',
+            'Date of submission of report', 'NC / MiN/ I *', 'Observation description'
+        ]
+        
+        if not all(col in df.columns for col in required_columns):
+            return jsonify({'error': 'Invalid file template format'}), 400
+        
+        # Process data
+        df = df.rename(columns={
+            'Domain/Clauses': 'DomainClauses',
+            'NC / MiN/ I *': 'NCMinI',
+            'Observation description': 'ObservationDescription'
+        })
+        
+        # Convert to list of dictionaries
+        records = df.to_dict('records')
+        
+        # Save to database
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        try:
+            # Clear existing data
+            cursor.execute(f"DELETE FROM {audit_type}_audits")
+            
+            # Insert new data
+            for record in records:
+                try:
+                    cursor.execute(f"""
+                        INSERT INTO {audit_type}_audits (
+                            SN, Location, DomainClauses, DateOfAudit, DateOfSubmission,
+                            NCMinI, ObservationDescription, UploadDate
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        str(record.get('SN') or ''),
+                        str(record.get('Location') or ''),
+                        str(record.get('DomainClauses') or ''),
+                        pd.to_datetime(record.get('Date of audit'), errors='coerce'),
+                        pd.to_datetime(record.get('Date of submission of report'), errors='coerce'),
+                        str(record.get('NCMinI') or ''),
+                        str(record.get('ObservationDescription') or ''),
+                        datetime.now()
+                    ))
+                except Exception as e:
+                    print(f"Failed to insert record: {record['SN']} — {e}")
+
+            
+            conn.commit()
+            return jsonify({
+                'success': True, 
+                'count': len(records),
+                'message': f'Successfully uploaded {len(records)} records'
+            })
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+
+@app.route('/api/audits/update', methods=['POST'])
+@handle_errors
+def update_audit_record():
+    data = request.get_json()
+    audit_type = data.get('type')
+    record = data.get('record')
+    
+    if not audit_type or audit_type not in ['internal', 'external']:
+        return jsonify({'error': 'Invalid audit type'}), 400
+    
+    if not record or 'SN' not in record or 'Location' not in record or 'DateOfAudit' not in record:
+        return jsonify({'error': 'Missing required record data'}), 400
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(f"""
+            UPDATE {audit_type}_audits SET
+                RootCauseAnalysis = ?,
+                CorrectiveAction = ?,
+                PreventiveAction = ?,
+                Responsibility = ?,
+                ClosingDates = ?,
+                Status = ?,
+                Evidence = ?
+            WHERE SN = ? AND Location = ? AND DateOfAudit = ?
+        """, (
+            record.get('RootCauseAnalysis'),
+            record.get('CorrectiveAction'),
+            record.get('PreventiveAction'),
+            record.get('Responsibility'),
+            record.get('ClosingDates'),
+            record.get('Status', 'Open'),
+            record.get('Evidence'),
+            record['SN'],
+            record['Location'],
+            record['DateOfAudit']
+        ))
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Record not found or not updated'}), 404
+        
+        conn.commit()
+        return jsonify({'success': True, 'message': 'Record updated successfully'})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/audits/upload-evidence', methods=['POST'])
+@handle_errors
+def upload_evidence():
+    # Check if file exists
+
+    print("Upload evidence endpoint hit!")  # Debug line
+    print(request.files)  # Debug line
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file part'}), 400
+        
+    file = request.files['file']
+    record_id = request.form.get('record_id')
+    audit_type = request.form.get('audit_type')
+    
+    # Validate record_id is numeric
+    if not record_id or not record_id.isdigit():
+        return jsonify({'error': 'Invalid record ID'}), 400
+        
+    if not audit_type or audit_type not in ['internal', 'external']:
+        return jsonify({'error': 'Invalid audit type'}), 400
+        
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+        
+    # Validate file extension
+    allowed_extensions = {'pdf', 'pptx', 'png', 'jpeg', 'jpg'}
+    if '.' not in file.filename or \
+       file.filename.rsplit('.', 1)[1].lower() not in allowed_extensions:
+        return jsonify({'error': 'Invalid file type'}), 400
+
+    # Generate unique filename
+    file_ext = file.filename.rsplit('.', 1)[1].lower()
+    filename = f"evidence_{record_id}_{uuid.uuid4().hex[:8]}.{file_ext}"
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
+
+    # Update database record
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(f"""
+            UPDATE {audit_type}_audits
+            SET Evidence = ?, Status = 'Closed'
+            WHERE ID = ?
+        """, (filename, record_id))
+        conn.commit()
+        return jsonify({'success': True, 'filename': filename})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
+
+# Add this route to serve uploaded files
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=3001, debug=True)
+api.js;
+class ApiService {
+  constructor() {
+    this.baseUrl = 'http://localhost:3001/api';
+  }
+
+  getAuthHeaders() {
+    const user = JSON.parse(localStorage.getItem('user'));
+    const token = user?.token;
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    };
+  }
+
+  async login(username, password) {
+    const response = await fetch(`${this.baseUrl}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(await response.text() || 'Login failed');
+    }
+    
+    const userData = await response.json();
+    localStorage.setItem('user', JSON.stringify(userData));
+    return userData;
+  }
+
+  async getAllUsers() {
+    const response = await fetch(`${this.baseUrl}/users`, {
+      headers: this.getAuthHeaders()
+    });
+    if (!response.ok) {
+      throw new Error('Failed to fetch users');
+    }
+    return await response.json();
+  }
+
+    async createUser(userData) {
+    const response = await fetch(`${this.baseUrl}/users`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(userData),
+    });
+    
+    if (!response.ok) {
+      throw new Error(await response.text() || 'Failed to create user');
+    }
+    
+    return await response.json();
+  }
+
+  async getAuditData(auditType) {
+  const response = await fetch(`${this.baseUrl}/audits?type=${auditType}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch audit data');
+  }
+  const result = await response.json();
+  
+  // Ensure we always return an array, even if the structure is different
+  if (Array.isArray(result)) {
+    return result;
+  } else if (result.data && Array.isArray(result.data)) {
+    return result.data;
+  } else {
+    return []; // Return empty array if no valid data found
+  }
+}
+
+  async uploadAuditFile(formData, auditType) {
+  const user = JSON.parse(localStorage.getItem('user'));
+  const token = user?.token;
+
+  try {
+    const response = await fetch(`${this.baseUrl}/audits/upload`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+        // Don't set Content-Type - let the browser set it with boundary
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Upload failed');
+    }
+
+    return await response.json();
+  } catch (err) {
+    console.error('Upload error:', err);
+    throw err;
+  }
+}
+
+  async updateUser(userId, userData) {
+  const response = await fetch(`${this.baseUrl}/users/${userId}`, {
+    method: 'PUT',
+    headers: this.getAuthHeaders(),
+    body: JSON.stringify(userData),
+  });
+  
+  if (!response.ok) {
+    throw new Error(await response.text() || 'Failed to update user');
+  }
+  
+  return await response.json();
+}
+
+async deleteUser(userId) {
+  const response = await fetch(`${this.baseUrl}/users/${userId}`, {
+    method: 'DELETE',
+    headers: this.getAuthHeaders()
+  });
+  
+  if (!response.ok) {
+    throw new Error(await response.text() || 'Failed to delete user');
+  }
+  
+  return await response.json();
+}
+
+  async updateAuditRecord(auditType, record) {
+  const response = await fetch(`${this.baseUrl}/audits/update`, {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${JSON.parse(localStorage.getItem('user'))?.token}`
+    },
+    body: JSON.stringify({ 
+      type: auditType,  // Changed from auditType to type to match backend expectation
+      record: {
+        ...record,
+        // Ensure date fields are properly formatted
+        DateOfAudit: record.DateOfAudit || null,
+        ClosingDates: record.ClosingDates || null
+      }
+    }),
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'Failed to update record');
+  }
+  
+  return await response.json();
+}
+
+  async uploadEvidence(formData) {
+  const user = JSON.parse(localStorage.getItem('user'));
+  const token = user?.token;
+  
+  try {
+    const response = await fetch(`${this.baseUrl}/audits/upload-evidence`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Evidence upload failed');
+    }
+
+    return await response.json();
+  } catch (err) {
+    console.error('Evidence upload error:', err);
+    throw err;
+  }
+}
+
+  async checkLastUploadDate(auditType) {
+    const response = await fetch(`${this.baseUrl}/audits/last-upload?type=${auditType}`);
+    if (!response.ok) {
+      throw new Error('Failed to check last upload date');
+    }
+    return await response.json();
+  }
+}
+
+export default new ApiService();
