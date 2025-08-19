@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../services/api';
-import Header from '../components/Header';
+import api from '../../services/api';
+import Header from '../../components/Common/Header';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { FiUpload, FiDownload, FiRefreshCw, FiSearch, FiEdit2, FiFile, FiX } from 'react-icons/fi';
-import { motion } from 'framer-motion';
-import './audits.css';
+import { FiUpload, FiDownload, FiRefreshCw, FiSearch, FiEdit2, FiFile, FiX, FiFilter } from 'react-icons/fi';
+import styles from './Audits.module.css';
 
 const Audits = () => {
   const [auditType, setAuditType] = useState('internal');
@@ -69,8 +68,7 @@ const Audits = () => {
       result = result.filter(row => 
         Object.values(row).some(
           val => val && val.toString().toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      );
+      ));
     }
     
     setFilteredData(result);
@@ -229,154 +227,152 @@ const Audits = () => {
   };
 
   return (
-  <div className="audit-dashboard">
-    <Header />
-    <ToastContainer position="top-right" autoClose={5000} />
-    
-    <div className="audit-container">
-      <div className="audit-content">
-        {/* Main Header Section */}
-        <div className="audit-page-header">
-          <h1>{auditType === 'internal' ? 'Internal' : 'External'} Audit Management</h1>
-          
-          <div className="upload-section">
-            <h3>Upload New Audit Data</h3>
-            <div className="file-upload-controls">
-              <label className="file-input-label">
-                <input 
-                  type="file" 
-                  accept=".xlsx,.csv" 
-                  onChange={handleFileChange} 
-                  key={fileKey} 
+    <div className={styles.auditDashboard}>
+      <Header />
+      <ToastContainer position="top-right" autoClose={5000} />
+      
+      <div className={styles.auditContainer}>
+        <div className={styles.auditContent}>
+          {/* Compact Header Row */}
+          <div className={styles.compactHeader}>
+            <div className={styles.titleSection}>
+              <h1>Internal Audit Management</h1>
+            </div>
+            
+            <div className={styles.controlsSection}>
+              <div className={styles.searchBox}>
+                <FiSearch className={styles.searchIcon} />
+                <input
+                  type="text"
+                  placeholder="Search audits..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                 />
-                <span className="file-input-button">Choose File</span>
-                <span className="file-input-name">
-                  {file ? file.name : 'No file chosen'}
-                </span>
-              </label>
-              <button 
-                onClick={handleFileUpload} 
-                disabled={!file || isLoading}
-                className="upload-button"
-              >
-                {isLoading ? (
-                  <FiRefreshCw className="spin-icon" />
-                ) : (
-                  <>
-                    <FiUpload /> Upload
-                  </>
-                )}
-              </button>
+              </div>
+              
+              <div className={styles.filterDropdown}>
+                <FiFilter className={styles.filterIcon} />
+                <select
+                  value={selectedPlant}
+                  onChange={(e) => setSelectedPlant(e.target.value)}
+                >
+                  {plants.map((plant, index) => (
+                    <option key={index} value={plant}>{plant}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {isAdmin && (
+                <div className={styles.uploadControl}>
+                  <label className={styles.fileInputLabel}>
+                    <input 
+                      type="file" 
+                      accept=".xlsx,.csv" 
+                      onChange={handleFileChange} 
+                      key={fileKey} 
+                    />
+                    <span className={styles.fileInputButton}>
+                      <FiUpload /> Upload
+                    </span>
+                  </label>
+                  <button 
+                    onClick={handleFileUpload} 
+                    disabled={!file || isLoading}
+                    className={styles.uploadButton}
+                  >
+                    {isLoading ? (
+                      <FiRefreshCw className={styles.spinIcon} />
+                    ) : 'Submit'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-        </div>
 
-        {/* Filters Section */}
-        <div className="audit-filters">
-          <div className="search-box">
-            <FiSearch className="search-icon" />
-            <input
-              type="text"
-              placeholder="Search audits..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          
-          <select
-            value={selectedPlant}
-            onChange={(e) => setSelectedPlant(e.target.value)}
-            className="plant-select"
-          >
-            {plants.map((plant, index) => (
-              <option key={index} value={plant}>{plant}</option>
-            ))}
-          </select>
-        </div>
-
-        {/* Error Message */}
-        {error && (
-          <div className="error-message">
-            {error}
-          </div>
-        )}
-
-        {/* Audit Table */}
-        <div className="audit-table-wrapper">
-          {isLoading ? (
-            <div className="loading-spinner">
-              <div className="spinner"></div>
-              <p>Loading audit data...</p>
+          {/* Error Message */}
+          {error && (
+            <div className={styles.errorMessage}>
+              {error}
             </div>
-          ) : (
-            <div className="table-container">
-              <table className="audit-data-table">
+          )}
+
+          {/* Enhanced Audit Table */}
+          <div className={styles.tableWrapper}>
+            {isLoading ? (
+              <div className={styles.loadingSpinner}>
+                <div className={styles.spinner}></div>
+                <p>Loading audit data...</p>
+              </div>
+            ) : (
+              <div className={styles.tableContainer}>
+                <table className={styles.auditTable}>
                   <thead>
                     <tr>
-                      <th style={{ width: '50px' }}>SN</th>
-                      <th style={{ width: '120px' }}>Location</th>
-                      <th style={{ width: '150px' }}>Domain/Clauses</th>
-                      <th style={{ width: '120px' }}>Date of Audit</th>
-                      <th style={{ width: '120px' }}>Report Date</th>
-                      <th style={{ width: '100px' }}>NC Type</th>
-                      <th style={{ width: '250px' }}>Observation</th>
-                      <th style={{ minWidth: '300px' }}>Root Cause Analysis</th>
-                      <th style={{ minWidth: '300px' }}>Corrective Action</th>
-                      <th style={{ minWidth: '300px' }}>Preventive Action</th>
-                      <th style={{ width: '150px' }}>Responsibility</th>
-                      <th style={{ width: '120px' }}>Closing Date</th>
-                      <th style={{ width: '120px' }}>Status</th>
-                      <th style={{ width: '150px' }}>Evidence</th>
-                      <th style={{ width: '50px' }}></th>
+                      <th>SN</th>
+                      <th>Location</th>
+                      <th>Domain/Clauses</th>
+                      <th>Date of Audit</th>
+                      <th>Report Date</th>
+                      <th>NC Type</th>
+                      <th>Observation</th>
+                      <th>Root Cause Analysis</th>
+                      <th>Corrective Action</th>
+                      <th>Preventive Action</th>
+                      <th>Responsibility</th>
+                      <th>Closing Date</th>
+                      <th>Status</th>
+                      <th>Evidence</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredData.map((row, rowIndex) => (
                       <React.Fragment key={rowIndex}>
                         <tr>
-                          <td>{row.SN}</td>
-                          <td>{row.Location}</td>
-                          <td>{row.DomainClauses}</td>
-                          <td>{row.DateOfAudit}</td>
-                          <td>{row.DateOfSubmission}</td>
-                          <td>
-                            <span className={`nc-badge ${row.NCMinI?.toLowerCase().replace(' ', '-')}`}>
+                          <td className={styles.tableCell}>{row.SN}</td>
+                          <td className={styles.tableCell}>{row.Location}</td>
+                          <td className={styles.tableCell}>{row.DomainClauses}</td>
+                          <td className={styles.tableCell}>{row.DateOfAudit}</td>
+                          <td className={styles.tableCell}>{row.DateOfSubmission}</td>
+                          <td className={styles.tableCell}>
+                            <span className={`${styles.ncBadge} ${styles[row.NCMinI?.toLowerCase().replace(' ', '-')]}`}>
                               {row.NCMinI}
                             </span>
                           </td>
-                          <td className="observation-cell">
-                            <div className="observation-content">
-                              {row.ObservationDescription}
-                            </div>
+                          <td className={`${styles.tableCell} ${styles.observationCell}`}>
+                            {row.ObservationDescription}
                           </td>
-                          <td>
+                          <td className={`${styles.tableCell} ${styles.editableCell}`}>
                             <textarea
                               value={row.RootCauseAnalysis || ''}
                               onChange={(e) => handleCellUpdate(rowIndex, 'RootCauseAnalysis', e.target.value)}
-                              placeholder="Enter root cause analysis..."
+                              placeholder="Enter analysis..."
+                              className={styles.editableField}
                             />
                           </td>
-                          <td>
+                          <td className={`${styles.tableCell} ${styles.editableCell}`}>
                             <textarea
                               value={row.CorrectiveAction || ''}
                               onChange={(e) => handleCellUpdate(rowIndex, 'CorrectiveAction', e.target.value)}
-                              placeholder="Enter corrective action..."
+                              placeholder="Enter action..."
+                              className={styles.editableField}
                             />
                           </td>
-                          <td>
+                          <td className={`${styles.tableCell} ${styles.editableCell}`}>
                             <textarea
                               value={row.PreventiveAction || ''}
                               onChange={(e) => handleCellUpdate(rowIndex, 'PreventiveAction', e.target.value)}
-                              placeholder="Enter preventive action..."
+                              placeholder="Enter action..."
+                              className={styles.editableField}
                             />
                           </td>
-                          <td>
+                          <td className={`${styles.tableCell} ${styles.editableCell}`}>
                             <select
                               value={row.Responsibility || ''}
                               onChange={(e) => handleCellUpdate(rowIndex, 'Responsibility', e.target.value)}
-                              className="responsibility-select"
+                              className={styles.responsibilitySelect}
                             >
-                              <option value="">Select Responsible</option>
+                              <option value="">Select</option>
                               {users.map(user => (
                                 <option key={user.id} value={user.Username}>
                                   {user.CompanyName} ({user.Username})
@@ -384,38 +380,39 @@ const Audits = () => {
                               ))}
                             </select>
                           </td>
-                          <td>
+                          <td className={`${styles.tableCell} ${styles.editableCell}`}>
                             <input
                               type="date"
                               value={row.ClosingDates || ''}
                               onChange={(e) => handleCellUpdate(rowIndex, 'ClosingDates', e.target.value)}
+                              className={styles.dateInput}
                             />
                           </td>
-                          <td>
+                          <td className={`${styles.tableCell} ${styles.editableCell}`}>
                             <select
                               value={row.Status || 'Open'}
                               onChange={(e) => handleCellUpdate(rowIndex, 'Status', e.target.value)}
-                              className={`status-select ${row.Status?.toLowerCase()}`}
+                              className={`${styles.statusSelect} ${styles[row.Status?.toLowerCase()]}`}
                               disabled={!isAdmin && row.Status === 'Closed'}
                             >
                               <option value="Open">Open</option>
                               <option value="Closed">Closed</option>
                             </select>
                           </td>
-                          <td className="evidence-cell">
+                          <td className={`${styles.tableCell} ${styles.evidenceCell}`}>
                             {row.Evidence ? (
-                              <div className="evidence-download">
+                              <div className={styles.evidenceDownload}>
                                 <a 
                                   href={`${api.baseUrl}/uploads/${row.Evidence}`} 
                                   target="_blank" 
                                   rel="noopener noreferrer"
-                                  className="download-link"
+                                  className={styles.downloadLink}
                                 >
                                   <FiDownload /> Download
                                 </a>
                                 {isAdmin && (
                                   <button 
-                                    className="clear-evidence"
+                                    className={styles.clearEvidence}
                                     onClick={() => handleCellUpdate(rowIndex, 'Evidence', '')}
                                   >
                                     <FiX />
@@ -423,7 +420,7 @@ const Audits = () => {
                                 )}
                               </div>
                             ) : (
-                              <div className="evidence-upload">
+                              <div className={styles.evidenceUpload}>
                                 <input
                                   type="file"
                                   id={`evidence-${rowIndex}`}
@@ -431,39 +428,37 @@ const Audits = () => {
                                   onChange={(e) => handleEvidenceFileChange(e, rowIndex)}
                                   style={{ display: 'none' }}
                                 />
-                                <label htmlFor={`evidence-${rowIndex}`} className="file-label">
+                                <label htmlFor={`evidence-${rowIndex}`} className={styles.fileLabel}>
                                   <FiFile /> Choose File
                                 </label>
                                 {evidenceFiles[rowIndex] && (
-                                  <>
-                                    <span className="file-name">{evidenceFiles[rowIndex].name}</span>
-                                    <button 
-                                      className="upload-button"
-                                      onClick={() => handleEvidenceUpload(rowIndex)}
-                                      disabled={isLoading}
-                                    >
-                                      <FiUpload /> Upload
-                                    </button>
-                                  </>
+                                  <button 
+                                    className={styles.uploadButton}
+                                    onClick={() => handleEvidenceUpload(rowIndex)}
+                                    disabled={isLoading}
+                                  >
+                                    <FiUpload /> Upload
+                                  </button>
                                 )}
                               </div>
                             )}
                           </td>
-                          <td>
+                          <td className={styles.tableCell}>
                             <button 
-                              className="expand-button"
+                              className={styles.expandButton}
                               onClick={() => toggleRowExpand(rowIndex)}
+                              title="Edit details"
                             >
                               <FiEdit2 />
                             </button>
                           </td>
                         </tr>
                         {expandedRow === rowIndex && (
-                          <tr className="expanded-row">
+                          <tr className={styles.expandedRow}>
                             <td colSpan="15">
-                              <div className="expanded-content">
+                              <div className={styles.expandedContent}>
                                 <h4>Detailed View</h4>
-                                <div className="expanded-grid">
+                                <div className={styles.expandedGrid}>
                                   <div>
                                     <label>Observation Description:</label>
                                     <p>{row.ObservationDescription}</p>
@@ -473,6 +468,7 @@ const Audits = () => {
                                     <textarea
                                       value={row.RootCauseAnalysis || ''}
                                       onChange={(e) => handleCellUpdate(rowIndex, 'RootCauseAnalysis', e.target.value)}
+                                      className={styles.expandedTextarea}
                                     />
                                   </div>
                                   <div>
@@ -480,6 +476,7 @@ const Audits = () => {
                                     <textarea
                                       value={row.CorrectiveAction || ''}
                                       onChange={(e) => handleCellUpdate(rowIndex, 'CorrectiveAction', e.target.value)}
+                                      className={styles.expandedTextarea}
                                     />
                                   </div>
                                   <div>
@@ -487,6 +484,7 @@ const Audits = () => {
                                     <textarea
                                       value={row.PreventiveAction || ''}
                                       onChange={(e) => handleCellUpdate(rowIndex, 'PreventiveAction', e.target.value)}
+                                      className={styles.expandedTextarea}
                                     />
                                   </div>
                                 </div>
